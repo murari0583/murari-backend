@@ -1,10 +1,10 @@
-import  {v2 as cloudinary} from 'cloudinary'
-import {fs} from 'fs' 
+import { v2 as cloudinary } from 'cloudinary';
+import fs from 'fs';
 
 cloudinary.config({
-    cloud_name:process.env.CLOUDINARY_CLOUD_NAME ,
-    api_key:'process.env.CLOUDINARY_API_KEY',
-    api_secret:'process.env.CLOUDINARY_CLOUD_SECRET'
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
 const uploadToCloudinary = async (localFilepath) => {
@@ -12,10 +12,11 @@ const uploadToCloudinary = async (localFilepath) => {
     const result = await cloudinary.uploader.upload(localFilepath, {
       folder: "user_avatars"
     });
+    fs.unlinkSync(localFilepath);
     return result.secure_url;
-
-    // file has been uploade successfully
   } catch (error) {
     throw new Error("Cloudinary upload failed: " + error.message);
   }
 };
+
+export { uploadToCloudinary };
