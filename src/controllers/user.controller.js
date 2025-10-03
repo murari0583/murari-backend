@@ -5,6 +5,33 @@ import { uploadToCloudinary } from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/response.js";
 import user from "../models/user.model.js";
 
+
+const generateAccessTokenAndRefreshTokens = async (userId) => {
+  try {  
+    const user = await user.findById(userId);
+    const accessToken = jwt.sign(
+      {
+        _id: userId,    
+      },
+      process.env.ACCESS_TOKEN_SECRET,
+      {expiresIn: process.env.ACCESS_TOKEN_EXPIRY}
+    );
+
+    const refreshToken = jwt.sign(
+      {
+        _id: userId,
+      },
+      process.env.REFRESH_TOKEN_SECRET,
+      {expiresIn: process.env.REFRESH_TOKEN_EXPIRY}
+    );
+
+    return { accessToken, refreshToken };
+  } catch (error) {
+    throw new Error("Token generation failed: " + error.message);
+  }
+  // JWT token generate karne ka code yahan likhenge
+};
+
 // get user detIL FROM FRONTEND
 // validation
 // check user exist or not
@@ -58,7 +85,7 @@ const registerUser = asyncHandler(async (req, res) => {
     username: username.toLowerCase(),
     password,
     avatar: avatarUrl,
-    coverImage: coverImage?.url || "",
+   coverImage: coverImageUrl || "",
   });
 
   if (!newUser) {
@@ -72,5 +99,63 @@ const registerUser = asyncHandler(async (req, res) => {
     new ApiResponse(201, "User registered successfully", newUser)
   );
 });
+const loginUser = asyncHandler(async(req,res)=>{
+  // req body se data lao
+  const{email,username,password} = req.body
+  if(!(email || username) || !password){
+    throw new ApiError("All fields are required",400)
+  }
 
-export { registerUser };
+  // username aur email
+    const User=await User.findOne({
+    $or:[{email},{username}]
+  })
+  if(!User){
+    throw new ApiError("User not found",404)
+  }
+  const isPasswordCorrect=await user.isPasswordCorrect(password)
+  if(!isPasswordCorrect){
+    throw new ApiError("Invalid credentials",401)
+  }
+
+  const loggedInUser= await user.findById(User._id).select("-password -refreshToken -__v -createdAt -updatedAt")
+
+  const {accessToken,refreshToken}= await generateAccessTokenAndRefreshTokens(User._id)  
+  // cookie
+  const cookieOptions = {
+    httpOnly: true,
+    secure: true,
+  };
+  return res.status(200).cookie("refreshToken",refreshToken,cookieOptions).json(
+    new ApiResponse(200,"User logged in successfully",{user:loggedInUser,accessToken})
+  )
+});
+
+// response bhejo
+// sabse pehle validation karo
+
+// find the user
+// password check karo
+// agar sab thik hai to access token aur refresh token generate karo
+// refresh token ko db me save karo
+// cookie me refresh token bhejo
+
+const logoutUser = asyncHandler(async (req, res) => {
+  const { refreshToken } = req.cookies;
+  if (!refreshToken) {
+    throw new ApiError("No refresh token found", 400);
+  }
+  // Add your logout logic here, e.g., remove refresh token from DB, clear cookie, etc.
+  res.clearCookie("refreshToken");
+  return res.status(200).json(
+    new ApiResponse(200, "User logged out successfully")
+  );
+});
+
+  
+
+export { registerUser,
+          loginUser ,
+          logoutUser
+
+ };
